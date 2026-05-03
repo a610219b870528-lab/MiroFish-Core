@@ -1,0 +1,137 @@
+~/workspace$ rm -rf .git
+git init
+git config user.email "a610219b870528@gmail.com"
+git config user.name "a610219b870528-lab"
+git remote add origin https://a610219b870528-lab:ghp_你的TOKEN@github.com/a610219b870528-lab/MiroFish-Core.git
+git add .
+git commit -m "MiroFish MVP: Zero-Config Deployment Bridge"
+git branch -M main
+git push -u origin main --force
+Initialized empty Git repository in /home/runner/workspace/.git/
+[main (root-commit) c500d0d] MiroFish MVP: Zero-Config Deployment Bridge
+ 122 files changed, 14093 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 .npmrc
+ create mode 100644 .replit
+ create mode 100644 .replitignore
+ create mode 100644 artifacts/api-server/.replit-artifact/artifact.toml
+ create mode 100644 artifacts/api-server/build.mjs
+ create mode 100644 artifacts/api-server/package.json
+ create mode 100644 artifacts/api-server/src/app.ts
+ create mode 100644 artifacts/api-server/src/index.ts
+ create mode 100644 artifacts/api-server/src/lib/.gitkeep
+ create mode 100644 artifacts/api-server/src/lib/logger.ts
+ create mode 100644 artifacts/api-server/src/middlewares/.gitkeep
+ create mode 100644 artifacts/api-server/src/routes/health.ts
+ create mode 100644 artifacts/api-server/src/routes/index.ts
+ create mode 100644 artifacts/api-server/tsconfig.json
+ create mode 100644 artifacts/mirofish-api/Dockerfile
+ create mode 100644 artifacts/mirofish-api/agent_core.py
+ create mode 100644 artifacts/mirofish-api/main.py
+ create mode 100644 artifacts/mirofish-api/requirements.txt
+ create mode 100644 artifacts/mockup-sandbox/.replit-artifact/artifact.toml
+ create mode 100644 artifacts/mockup-sandbox/components.json
+ create mode 100644 artifacts/mockup-sandbox/index.html
+ create mode 100644 artifacts/mockup-sandbox/mockupPreviewPlugin.ts
+ create mode 100644 artifacts/mockup-sandbox/package.json
+ create mode 100644 artifacts/mockup-sandbox/src/.generated/mockup-components.ts
+ create mode 100644 artifacts/mockup-sandbox/src/App.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/accordion.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/alert-dialog.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/alert.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/aspect-ratio.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/avatar.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/badge.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/breadcrumb.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/button-group.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/button.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/calendar.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/card.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/carousel.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/chart.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/checkbox.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/collapsible.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/command.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/context-menu.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/dialog.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/drawer.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/dropdown-menu.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/empty.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/field.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/form.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/hover-card.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/input-group.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/input-otp.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/input.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/item.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/kbd.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/label.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/menubar.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/navigation-menu.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/pagination.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/popover.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/progress.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/radio-group.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/resizable.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/scroll-area.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/select.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/separator.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/sheet.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/sidebar.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/skeleton.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/slider.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/sonner.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/spinner.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/switch.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/table.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/tabs.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/textarea.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/toast.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/toaster.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/toggle-group.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/toggle.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/components/ui/tooltip.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/hooks/use-mobile.tsx
+ create mode 100644 artifacts/mockup-sandbox/src/hooks/use-toast.ts
+ create mode 100644 artifacts/mockup-sandbox/src/index.css
+ create mode 100644 artifacts/mockup-sandbox/src/lib/utils.ts
+ create mode 100644 artifacts/mockup-sandbox/src/main.tsx
+ create mode 100644 artifacts/mockup-sandbox/tsconfig.json
+ create mode 100644 artifacts/mockup-sandbox/vite.config.ts
+ create mode 100644 attached_assets/image_1777796879889.png
+ create mode 100644 lib/api-client-react/package.json
+ create mode 100644 lib/api-client-react/src/custom-fetch.ts
+ create mode 100644 lib/api-client-react/src/generated/api.schemas.ts
+ create mode 100644 lib/api-client-react/src/generated/api.ts
+ create mode 100644 lib/api-client-react/src/index.ts
+ create mode 100644 lib/api-client-react/tsconfig.json
+ create mode 100644 lib/api-spec/openapi.yaml
+ create mode 100644 lib/api-spec/orval.config.ts
+ create mode 100644 lib/api-spec/package.json
+ create mode 100644 lib/api-zod/package.json
+ create mode 100644 lib/api-zod/src/generated/api.ts
+ create mode 100644 lib/api-zod/src/generated/types/healthStatus.ts
+ create mode 100644 lib/api-zod/src/generated/types/index.ts
+ create mode 100644 lib/api-zod/src/index.ts
+ create mode 100644 lib/api-zod/tsconfig.json
+ create mode 100644 lib/db/drizzle.config.ts
+ create mode 100644 lib/db/package.json
+ create mode 100644 lib/db/src/index.ts
+ create mode 100644 lib/db/src/schema/index.ts
+ create mode 100644 lib/db/tsconfig.json
+ create mode 100644 main.py
+ create mode 100644 package.json
+ create mode 100644 pnpm-lock.yaml
+ create mode 100644 pnpm-workspace.yaml
+ create mode 100644 pyproject.toml
+ create mode 100644 replit.md
+ create mode 100644 scripts/package.json
+ create mode 100644 scripts/post-merge.sh
+ create mode 100644 scripts/src/hello.ts
+ create mode 100644 scripts/tsconfig.json
+ create mode 100644 tsconfig.base.json
+ create mode 100644 tsconfig.json
+ create mode 100644 uv.lock
+remote: Invalid username or token. Password authentication is not supported for Git operations.
+fatal: Authentication failed for 'https://github.com/a610219b870528-lab/MiroFish-Core.git/'
+~/workspace$ 
