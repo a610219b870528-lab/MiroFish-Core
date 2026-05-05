@@ -39,6 +39,17 @@ app = FastAPI(
     version="4.3.0",
 )
 
+from fastapi.middleware.cors import CORSMiddleware
+
+# 👑 CTO 資安設定：打通跨域防線 (CORS)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允許所有前端網址呼叫 (上線後可鎖定專屬網域)
+    allow_credentials=True,
+    allow_methods=["*"],  # 允許 GET, POST 等所有方法
+    allow_headers=["*"],
+)
+
 
 # ---------------------------------------------------------------------------
 # 2. 雙語化資料模型 (Bilingual Schemas)
