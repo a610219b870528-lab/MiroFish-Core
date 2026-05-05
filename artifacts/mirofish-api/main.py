@@ -3,7 +3,7 @@ import asyncio
 import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Literal
 import google.generativeai as genai
 
 # ---------------------------------------------------------------------------
@@ -21,41 +21,33 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 app = FastAPI(
-    title="MiroFish Universal Engine (中英雙語操作版)",
+    title="MiroFish Universal Engine (百人 Map-Reduce 巨型沙盤版)",
     description="""
-    **MiroFish 泛用型多智能體推演引擎 API (Universal Multi-Agent Simulation API)** 
+    **MiroFish 泛用型多智能體推演引擎 API** 
 
-    提供竹東傳產、公關危機、市場分析等多情境的沙盤推演能力。
-    Supports multi-scenario simulations including traditional industries, PR crises, and market analysis.
+    支援「自訂總人數」與「A/B 時間軸干預」。內建 Map-Reduce 階層壓縮與 Semaphore 併發防護網，最高支援數百名 Agent 同時推演而不崩潰。
     """,
-    version="3.3.0",
+    version="4.0.0",
 )
 
 
 # ---------------------------------------------------------------------------
-# 2. 全面雙語化資料防呆模型 (Fully Bilingual Pydantic Models)
+# 2. 雙語化資料模型 (支援動態算力分級 Tier)
 # ---------------------------------------------------------------------------
 class AgentRole(BaseModel):
     role_name: str = Field(..., description="角色名稱 (Role Name)")
     stance: str = Field(
         ..., description="角色的基本立場或背景設定 (Stance or Background)"
     )
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "role_name": "印刷廠廠長 (Factory Manager)",
-                    "stance": "關注產能與加班費 (Focus on capacity and overtime pay)",
-                }
-            ]
-        }
-    }
+    tier: Literal["flash", "pro"] = Field(
+        "flash",
+        description="大腦算力分級：flash (低成本群眾配角) / pro (高智能決策主角)",
+    )
 
 
 class SimulateRequest(BaseModel):
-    client_case_description: str = Field(
-        ..., description="客戶的案件或事件描述 (Client Case Description)"
+    event_timeline: List[str] = Field(
+        ..., description="事件時間軸陣列 (Array of chronological events)"
     )
     agents: List[AgentRole] = Field(..., description="動態角色列表 (List of Agents)")
 
@@ -63,15 +55,25 @@ class SimulateRequest(BaseModel):
         "json_schema_extra": {
             "examples": [
                 {
-                    "client_case_description": "【請輸入案件/Enter Case】範例：竹東農會中秋節 2000 份急件，三天內需交貨。",
+                    "event_timeline": [
+                        "【方案A】調漲社區管理費：每坪增加 20 元，增聘夜間雙哨保全。",
+                        "【突發干預】管委會主委在群組表示若不通過將集體請辭。",
+                    ],
                     "agents": [
                         {
-                            "role_name": "【請輸入角色/Enter Role】範例：印刷廠廠長 (Factory Manager)",
-                            "stance": "【請輸入立場/Enter Stance】範例：關注產能是否能負荷，並擔心加班費超標。",
+                            "role_name": "【主角】永旭保全夜班隊長",
+                            "stance": "關注弟兄安危與排班，強烈支持增聘雙哨。",
+                            "tier": "pro",
                         },
                         {
-                            "role_name": "【請輸入角色/Enter Role】範例：第一線機台操作員 (Machine Operator)",
-                            "stance": "【請輸入立場/Enter Stance】範例：只在乎機台會不會過熱，以及能不能準時下班。",
+                            "role_name": "【配角 1】投資客房東",
+                            "stance": "拒絕任何會增加持有成本的方案。",
+                            "tier": "flash",
+                        },
+                        {
+                            "role_name": "【配角 2】年輕雙薪家庭",
+                            "stance": "注重安全，只要能提出巡邏財報就願意支持。",
+                            "tier": "flash",
                         },
                     ],
                 }
@@ -82,48 +84,34 @@ class SimulateRequest(BaseModel):
 
 class SimulateResponse(BaseModel):
     status: str = Field(..., description="API 執行狀態 (Execution Status)")
-    client_case: str = Field(..., description="原始推演案件 (Original Client Case)")
+    map_reduce_triggered: bool = Field(
+        ..., description="是否觸發百人壓縮機制 (Was Map-Reduce triggered?)"
+    )
     executive_summary: str = Field(
-        ...,
-        description="高階總監決策與 SOP 統整 (Executive Summary & SOP from Pro Model)",
+        ..., description="總監決策與 SOP 統整 (Executive Summary & SOP)"
     )
     agent_reports: List[Dict[str, Any]] = Field(
-        ..., description="基層特務推演原始報告 (Raw Reports from Flash Agents)"
+        ..., description="所有特務的原始推演報告 (Raw Reports)"
     )
 
-    # 👑 CTO 魔法：強制渲染輸出範例，消滅所有 "string"
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "status": "success (成功)",
-                    "client_case": "竹東農會中秋節 2000 份急件 (Zhudong Farmers' Association urgent case)",
-                    "executive_summary": "【廠長最終決策 SOP / Manager Final SOP】\n1. 即刻盤點庫存紙材 (Check inventory)\n2. 安排機台 A 專責燙金 (Assign Machine A for hot stamping)\n3. 預計增加 15% 加班費預算 (Increase overtime budget by 15%)",
-                    "agent_reports": [
-                        {
-                            "role": "印刷廠廠長 (Factory Manager)",
-                            "stance": "關注產能是否能負荷 (Focus on capacity)",
-                            "model_used": "gemini-2.5-flash",
-                            "action": "我已確認過產線，目前必須立刻停下常規單，全力趕工。(Confirmed production line, must stop regular orders to rush this.)",
-                        }
-                    ],
-                }
-            ]
-        }
-    }
-
 
 # ---------------------------------------------------------------------------
-# 3. 併發防護與動態大腦呼叫 (Anti-OOM & Fallback Core)
+# 3. 併發防護與 Map-Reduce 核心引擎 (Anti-OOM Core)
 # ---------------------------------------------------------------------------
-MAX_CONCURRENT_REQUESTS = 10
+# 🚨 絕對防線：一次最多只允許 15 個請求同時敲擊 Gemini，保護 Zeabur 2GB RAM
+MAX_CONCURRENT_REQUESTS = 15
 semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+# Map-Reduce 觸發閾值：當 Flash 配角超過 20 人時啟動壓縮機制
+REDUCE_CHUNK_SIZE = 20
 
 
-async def call_gemini_flash(role: AgentRole, case_desc: str) -> dict:
-    model_name = "gemini-2.5-flash"
-    system_prompt = f"你現在是【{role.role_name}】。你的背景與立場是：【{role.stance}】。拒絕廢話，直指核心。"
-    user_prompt = f"正在推演的事件：{case_desc}\n請基於你的立場，給出你的具體反應與行動方案（條列式）。"
+async def call_gemini_agent(agent: AgentRole, timeline: List[str]) -> dict:
+    """底層推演：依據 tier 動態切換模型 (主角 Pro / 配角 Flash)"""
+    model_name = "gemini-2.5-pro" if agent.tier == "pro" else "gemini-2.5-flash"
+    formatted_timeline = "\n".join([f"- {event}" for event in timeline])
+
+    system_prompt = f"你現在是【{agent.role_name}】。你的背景與立場是：【{agent.stance}】。拒絕廢話，直指核心。"
+    user_prompt = f"以下是連續發生的時間軸事件：\n{formatted_timeline}\n\n請基於你的立場給出具體反應（條列式）。"
 
     async with semaphore:
         try:
@@ -132,20 +120,44 @@ async def call_gemini_flash(role: AgentRole, case_desc: str) -> dict:
             )
             response = await model.generate_content_async(user_prompt)
             return {
-                "role": role.role_name,
-                "stance": role.stance,
-                "model_used": model_name,
+                "role": agent.role_name,
+                "stance": agent.stance,
+                "tier": agent.tier,
                 "action": response.text,
             }
         except Exception as e:
-            logger.error(f"🚨 Agent [{role.role_name}] 推演失敗: {str(e)}")
-            return {"role": role.role_name, "error": str(e)}
+            logger.error(f"🚨 Agent [{agent.role_name}] 失敗: {str(e)}")
+            return {"role": agent.role_name, "tier": agent.tier, "error": str(e)}
 
 
-async def call_gemini_pro_summary(case_desc: str, context: str) -> str:
+async def reduce_flash_reports(
+    chunk_reports: List[Dict], timeline: List[str], chunk_id: int
+) -> str:
+    """Map-Reduce 秘書壓縮層：將 20 個配角的意見濃縮"""
+    model_name = "gemini-2.5-flash"
+    formatted_timeline = "\n".join([f"- {event}" for event in timeline])
+    raw_text = "\n".join(
+        [f"【{r['role']}】: {r.get('action', '失敗')}" for r in chunk_reports]
+    )
+
+    prompt = f"事件時間軸：\n{formatted_timeline}\n\n以下是第 {chunk_id} 批基層群眾/配角的反應：\n{raw_text}\n\n請扮演『情報秘書』，將上述群眾意見濃縮成 300 字以內的情緒風向與核心訴求重點。"
+
+    async with semaphore:
+        try:
+            model = genai.GenerativeModel(model_name=model_name)
+            response = await model.generate_content_async(prompt)
+            return f"【秘書群眾風向匯報 - 批次 {chunk_id}】:\n{response.text}"
+        except Exception as e:
+            return f"【秘書匯報 - 批次 {chunk_id} 失敗】: {str(e)}"
+
+
+async def call_gemini_pro_summary(timeline: List[str], final_context: str) -> str:
+    """終極廠長決策：匯整主角意見與秘書濃縮的群眾摘要"""
     model_name = "gemini-2.5-pro"
-    system_prompt = "你是本案的最高決策總監 (CTO/CEO級別)。請根據基層 Agent 的推演回報，統整出一份【最終戰略 SOP 表格】與【風險評估】。使用繁體中文輸出。"
-    user_prompt = f"客戶案件：{case_desc}\n\n各方 Agent 推演回報如下：\n{context}\n\n請以宏觀視角輸出最終決策報表。"
+    formatted_timeline = "\n".join([f"- {event}" for event in timeline])
+
+    system_prompt = "你是本案的最高決策總監。請根據『時間軸事態發展』、『核心主角意見』與『基層群眾風向』，統整出解決危機的【最終戰略 SOP 表格】。使用繁體中文輸出。"
+    user_prompt = f"事態時間軸：\n{formatted_timeline}\n\n情報匯總如下：\n{final_context}\n\n請以宏觀視角輸出決策報表。"
 
     try:
         model = genai.GenerativeModel(
@@ -159,50 +171,66 @@ async def call_gemini_pro_summary(case_desc: str, context: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 4. API 端點路由 (Bilingual Endpoint Documentation)
+# 4. API 端點路由 (API Endpoints)
 # ---------------------------------------------------------------------------
-@app.get(
-    "/",
-    summary="系統狀態 (Health Check)",
-    responses={200: {"description": "系統運作正常 (Server is running normally)"}},
-)
-async def health_check():
-    return {"status": "online", "version": "3.3.0"}
-
-
 @app.post(
-    "/simulate",
-    response_model=SimulateResponse,
-    summary="執行推演 (Run Simulation)",
-    responses={
-        200: {
-            "description": "成功回傳多智能體推演結果與總結報表 (Successfully returned multi-agent simulation results and summary report)"
-        },
-        422: {"description": "輸入格式錯誤 (Validation Error: Incorrect input format)"},
-    },
+    "/simulate", response_model=SimulateResponse, summary="百人級 Map-Reduce 沙盤推演"
 )
 async def run_universal_simulation(request: SimulateRequest):
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="Missing GEMINI_API_KEY")
 
+    # 1. 併發推演所有 Agent (Map)
     tasks = [
-        call_gemini_flash(agent, request.client_case_description)
-        for agent in request.agents
+        call_gemini_agent(agent, request.event_timeline) for agent in request.agents
     ]
-    base_reports = await asyncio.gather(*tasks)
+    all_reports = await asyncio.gather(*tasks)
 
-    compiled_reports_text = ""
-    for report in base_reports:
-        if "error" not in report:
-            compiled_reports_text += f"【{report['role']}】:\n{report['action']}\n---\n"
+    # 2. 分離主角 (Pro) 與配角 (Flash)
+    pro_reports = [r for r in all_reports if r.get("tier") == "pro"]
+    flash_reports = [r for r in all_reports if r.get("tier") == "flash"]
 
+    final_context_builder = ""
+    map_reduce_triggered = False
+
+    # 3. 處理主角報告 (不壓縮，保留完整決策細節)
+    if pro_reports:
+        final_context_builder += "=== 核心主角 (Pro) 意見 ===\n"
+        for r in pro_reports:
+            final_context_builder += (
+                f"【{r['role']}】:\n{r.get('action', '錯誤')}\n---\n"
+            )
+
+    # 4. 處理配角報告 (Reduce 壓縮機制)
+    final_context_builder += "=== 基層群眾 (Flash) 風向 ===\n"
+    if len(flash_reports) <= REDUCE_CHUNK_SIZE:
+        # 人數少，直接呈報
+        for r in flash_reports:
+            final_context_builder += (
+                f"【{r['role']}】:\n{r.get('action', '錯誤')}\n---\n"
+            )
+    else:
+        # 人數超過 20，觸發 Map-Reduce 秘書壓縮
+        map_reduce_triggered = True
+        chunks = [
+            flash_reports[i : i + REDUCE_CHUNK_SIZE]
+            for i in range(0, len(flash_reports), REDUCE_CHUNK_SIZE)
+        ]
+        reduce_tasks = [
+            reduce_flash_reports(chunk, request.event_timeline, i + 1)
+            for i, chunk in enumerate(chunks)
+        ]
+        summarized_chunks = await asyncio.gather(*reduce_tasks)
+        final_context_builder += "\n\n".join(summarized_chunks)
+
+    # 5. 總結廠長決策
     executive_summary = await call_gemini_pro_summary(
-        request.client_case_description, compiled_reports_text
+        request.event_timeline, final_context_builder
     )
 
     return SimulateResponse(
         status="success",
-        client_case=request.client_case_description,
+        map_reduce_triggered=map_reduce_triggered,
         executive_summary=executive_summary,
-        agent_reports=base_reports,
+        agent_reports=all_reports,  # 依然回傳所有生肉報告供操作員前端備查
     )
