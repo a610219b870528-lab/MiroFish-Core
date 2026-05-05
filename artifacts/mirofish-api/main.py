@@ -14,72 +14,78 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 🚨 資安防護：強制從環境變數讀取
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     logger.error("🚨 致命錯誤：未檢測到 GEMINI_API_KEY。")
 else:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# 👑 雙語 UI 初始化：這裡的設定會直接渲染到 Swagger UI 網頁標題與描述
 app = FastAPI(
-    title="MiroFish Universal Engine (中英雙語版)",
+    title="MiroFish Universal Engine (中英雙語操作版)",
     description="""
     **MiroFish 泛用型多智能體推演引擎 API (Universal Multi-Agent Simulation API)** 
 
     提供竹東傳產、公關危機、市場分析等多情境的沙盤推演能力。
     Supports multi-scenario simulations including traditional industries, PR crises, and market analysis.
     """,
-    version="3.1.0",
+    version="3.2.0",
 )
 
 
 # ---------------------------------------------------------------------------
-# 2. 雙語泛用型資料防呆模型 (Bilingual Dynamic Pydantic Models)
+# 2. 雙語泛用型資料防呆模型 (帶有強迫 UI 渲染範本)
 # ---------------------------------------------------------------------------
-# 這裡的 description 會直接變成操作員在網頁上看到的中文與英文提示
 class AgentRole(BaseModel):
-    role_name: str = Field(
-        ..., description="角色名稱 (Role Name)。範例 (Example)：憤怒的網民 / 資深廠長"
-    )
+    role_name: str = Field(..., description="角色名稱 (Role Name)")
     stance: str = Field(
-        ..., description="角色的基本立場或背景設定 (Stance or Background Setting)。"
+        ..., description="角色的基本立場或背景設定 (Stance or Background)"
     )
 
 
 class SimulateRequest(BaseModel):
     client_case_description: str = Field(
-        ..., description="客戶的案件或事件描述 (Client Case or Event Description)。"
+        ..., description="客戶的案件或事件描述 (Client Case Description)"
     )
-    agents: List[AgentRole] = Field(
-        ...,
-        description="本次推演需要動態生成的角色列表 (List of dynamically generated agents for this simulation)。",
-    )
+    agents: List[AgentRole] = Field(..., description="動態角色列表 (List of Agents)")
+
+    # 👑 CTO 魔法：強制在 Swagger UI 黑框中顯示這組雙語範本，取代預設的 "string"
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "client_case_description": "【請輸入案件/Enter Case】範例：竹東農會中秋節 2000 份急件，三天內需交貨。",
+                    "agents": [
+                        {
+                            "role_name": "【請輸入角色/Enter Role】範例：印刷廠廠長 (Factory Manager)",
+                            "stance": "【請輸入立場/Enter Stance】範例：關注產能是否能負荷，並擔心加班費超標。",
+                        },
+                        {
+                            "role_name": "【請輸入角色/Enter Role】範例：第一線機台操作員 (Machine Operator)",
+                            "stance": "【請輸入立場/Enter Stance】範例：只在乎機台會不會過熱，以及能不能準時下班。",
+                        },
+                    ],
+                }
+            ]
+        }
+    }
 
 
 class SimulateResponse(BaseModel):
-    status: str = Field(..., description="API 執行狀態 (Execution Status)")
-    client_case: str = Field(..., description="原始推演案件 (Original Client Case)")
-    executive_summary: str = Field(
-        ...,
-        description="高階總監決策與 SOP 統整 (Executive Summary & SOP from Pro Model)",
-    )
-    agent_reports: List[Dict[str, Any]] = Field(
-        ..., description="基層特務推演原始報告 (Raw Reports from Flash Agents)"
-    )
+    status: str
+    client_case: str
+    executive_summary: str
+    agent_reports: List[Dict[str, Any]]
 
 
 # ---------------------------------------------------------------------------
-# 3. 併發防護與動態大腦呼叫 (Anti-OOM & Fallback Core) - 核心運算邏輯不變
+# 3. 併發防護與動態大腦呼叫 (Anti-OOM & Fallback Core)
 # ---------------------------------------------------------------------------
 MAX_CONCURRENT_REQUESTS = 10
 semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
 
 async def call_gemini_flash(role: AgentRole, case_desc: str) -> dict:
-    """呼叫 Flash 進行基層 Agent 推演 (動態提示詞注入)"""
     model_name = "gemini-2.5-flash"
-
     system_prompt = f"你現在是【{role.role_name}】。你的背景與立場是：【{role.stance}】。拒絕廢話，直指核心。"
     user_prompt = f"正在推演的事件：{case_desc}\n請基於你的立場，給出你的具體反應與行動方案（條列式）。"
 
@@ -101,7 +107,6 @@ async def call_gemini_flash(role: AgentRole, case_desc: str) -> dict:
 
 
 async def call_gemini_pro_summary(case_desc: str, context: str) -> str:
-    """呼叫 Pro 進行高階決策統整"""
     model_name = "gemini-2.5-pro"
     system_prompt = "你是本案的最高決策總監 (CTO/CEO級別)。請根據基層 Agent 的推演回報，統整出一份【最終戰略 SOP 表格】與【風險評估】。使用繁體中文輸出。"
     user_prompt = f"客戶案件：{case_desc}\n\n各方 Agent 推演回報如下：\n{context}\n\n請以宏觀視角輸出最終決策報表。"
@@ -118,48 +123,31 @@ async def call_gemini_pro_summary(case_desc: str, context: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 4. 雙語 API 端點路由 (Bilingual API Endpoints)
+# 4. API 端點路由
 # ---------------------------------------------------------------------------
-@app.get(
-    "/",
-    summary="系統健康檢查 (Health Check)",
-    description="確認伺服器是否正常運作 (Check if the server is running normally).",
-)
+@app.get("/", summary="系統狀態 (Health Check)")
 async def health_check():
-    return {
-        "status": "online",
-        "message": "MiroFish Universal API is running.",
-        "version": "3.1.0",
-    }
+    return {"status": "online", "version": "3.2.0"}
 
 
 @app.post(
-    "/simulate",
-    response_model=SimulateResponse,
-    summary="觸發推演流水線 (Trigger Simulation Pipeline)",
-    description="輸入客戶案件與動態角色，執行多智能體平行推演並由 Pro 模型產出總結。(Input case and dynamic roles to execute simulation.)",
+    "/simulate", response_model=SimulateResponse, summary="執行推演 (Run Simulation)"
 )
 async def run_universal_simulation(request: SimulateRequest):
     if not GEMINI_API_KEY:
-        raise HTTPException(
-            status_code=500,
-            detail="未設定 GEMINI_API_KEY 環境變數 (Environment variable GEMINI_API_KEY is missing)",
-        )
+        raise HTTPException(status_code=500, detail="Missing GEMINI_API_KEY")
 
-    # 併發派發 Flash Agent
     tasks = [
         call_gemini_flash(agent, request.client_case_description)
         for agent in request.agents
     ]
     base_reports = await asyncio.gather(*tasks)
 
-    # 彙整報告
     compiled_reports_text = ""
     for report in base_reports:
         if "error" not in report:
             compiled_reports_text += f"【{report['role']}】:\n{report['action']}\n---\n"
 
-    # Pro 模型決策
     executive_summary = await call_gemini_pro_summary(
         request.client_case_description, compiled_reports_text
     )
