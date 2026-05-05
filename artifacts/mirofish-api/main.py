@@ -28,18 +28,29 @@ app = FastAPI(
     提供竹東傳產、公關危機、市場分析等多情境的沙盤推演能力。
     Supports multi-scenario simulations including traditional industries, PR crises, and market analysis.
     """,
-    version="3.2.0",
+    version="3.3.0",
 )
 
 
 # ---------------------------------------------------------------------------
-# 2. 雙語泛用型資料防呆模型 (帶有強迫 UI 渲染範本)
+# 2. 全面雙語化資料防呆模型 (Fully Bilingual Pydantic Models)
 # ---------------------------------------------------------------------------
 class AgentRole(BaseModel):
     role_name: str = Field(..., description="角色名稱 (Role Name)")
     stance: str = Field(
         ..., description="角色的基本立場或背景設定 (Stance or Background)"
     )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "role_name": "印刷廠廠長 (Factory Manager)",
+                    "stance": "關注產能與加班費 (Focus on capacity and overtime pay)",
+                }
+            ]
+        }
+    }
 
 
 class SimulateRequest(BaseModel):
@@ -48,7 +59,6 @@ class SimulateRequest(BaseModel):
     )
     agents: List[AgentRole] = Field(..., description="動態角色列表 (List of Agents)")
 
-    # 👑 CTO 魔法：強制在 Swagger UI 黑框中顯示這組雙語範本，取代預設的 "string"
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -71,10 +81,36 @@ class SimulateRequest(BaseModel):
 
 
 class SimulateResponse(BaseModel):
-    status: str
-    client_case: str
-    executive_summary: str
-    agent_reports: List[Dict[str, Any]]
+    status: str = Field(..., description="API 執行狀態 (Execution Status)")
+    client_case: str = Field(..., description="原始推演案件 (Original Client Case)")
+    executive_summary: str = Field(
+        ...,
+        description="高階總監決策與 SOP 統整 (Executive Summary & SOP from Pro Model)",
+    )
+    agent_reports: List[Dict[str, Any]] = Field(
+        ..., description="基層特務推演原始報告 (Raw Reports from Flash Agents)"
+    )
+
+    # 👑 CTO 魔法：強制渲染輸出範例，消滅所有 "string"
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "status": "success (成功)",
+                    "client_case": "竹東農會中秋節 2000 份急件 (Zhudong Farmers' Association urgent case)",
+                    "executive_summary": "【廠長最終決策 SOP / Manager Final SOP】\n1. 即刻盤點庫存紙材 (Check inventory)\n2. 安排機台 A 專責燙金 (Assign Machine A for hot stamping)\n3. 預計增加 15% 加班費預算 (Increase overtime budget by 15%)",
+                    "agent_reports": [
+                        {
+                            "role": "印刷廠廠長 (Factory Manager)",
+                            "stance": "關注產能是否能負荷 (Focus on capacity)",
+                            "model_used": "gemini-2.5-flash",
+                            "action": "我已確認過產線，目前必須立刻停下常規單，全力趕工。(Confirmed production line, must stop regular orders to rush this.)",
+                        }
+                    ],
+                }
+            ]
+        }
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -123,15 +159,27 @@ async def call_gemini_pro_summary(case_desc: str, context: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 4. API 端點路由
+# 4. API 端點路由 (Bilingual Endpoint Documentation)
 # ---------------------------------------------------------------------------
-@app.get("/", summary="系統狀態 (Health Check)")
+@app.get(
+    "/",
+    summary="系統狀態 (Health Check)",
+    responses={200: {"description": "系統運作正常 (Server is running normally)"}},
+)
 async def health_check():
-    return {"status": "online", "version": "3.2.0"}
+    return {"status": "online", "version": "3.3.0"}
 
 
 @app.post(
-    "/simulate", response_model=SimulateResponse, summary="執行推演 (Run Simulation)"
+    "/simulate",
+    response_model=SimulateResponse,
+    summary="執行推演 (Run Simulation)",
+    responses={
+        200: {
+            "description": "成功回傳多智能體推演結果與總結報表 (Successfully returned multi-agent simulation results and summary report)"
+        },
+        422: {"description": "輸入格式錯誤 (Validation Error: Incorrect input format)"},
+    },
 )
 async def run_universal_simulation(request: SimulateRequest):
     if not GEMINI_API_KEY:
