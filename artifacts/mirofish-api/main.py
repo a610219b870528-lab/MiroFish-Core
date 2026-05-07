@@ -5,8 +5,8 @@ import logging
 import time
 import httpx
 from fastapi import FastAPI, HTTPException, BackgroundTasks, APIRouter
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Dict, Any, Literal
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any, Literal, Optional
 import redis.asyncio as redis
 
 # 👑 CTO 架構升級：引入最新版 Google GenAI SDK
@@ -29,19 +29,17 @@ if not GEMINI_API_KEY:
 if not REDIS_URL:
     raise ValueError("🚨 致命錯誤：未檢測到 REDIS_URL，Redis 緩存無法啟動。")
 
-# 初始化新版 Gemini 客戶端與 Redis 連線池
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 app = FastAPI(
-    title="MiroFish Universal Engine (v4.4.0 VIP 尊榮版)",
-    description="實裝 VIP CSO 沉浸式對話艙與事件重塑引擎 (Gemini 2.5 核心)。",
-    version="4.4.0",
+    title="MiroFish Universal Engine (v5.0 Oracle 預知回推版)",
+    description="實裝 VIP CSO 沉浸式對話艙、多輪剝洋蔥質詢與可解釋選角 (Gemini 2.5 核心)。",
+    version="5.0.0",
 )
 
 from fastapi.middleware.cors import CORSMiddleware
 
-# 👑 CTO 資安設定：打通跨域防線 (CORS)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -52,12 +50,14 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
-# 2. 資料模型 (Schemas) - 包含新增的 VIP 專屬模型
+# 2. 資料模型 (Schemas) - 👑 升級可解釋選角與歷史記憶
 # ---------------------------------------------------------------------------
 class AgentRole(BaseModel):
     role_name: str = Field(..., description="角色名稱")
     stance: str = Field(..., description="立場設定")
     tier: Literal["flash", "pro"] = Field("flash")
+    # 👑 VIP 專屬：可解釋性選角理由
+    justification: str = Field(default="一般沙盤推演預設配置", description="推薦理由")
 
 
 class GenerateCastRequest(BaseModel):
@@ -78,18 +78,23 @@ class TaskResponse(BaseModel):
     message: str
 
 
-# 💎 VIP 專屬對話模型
+# 💎 VIP 專屬對話與歷史記憶模型
+class ChatMessage(BaseModel):
+    role: Literal["cso", "vip"]
+    content: str
+
+
 class ConsultRequest(BaseModel):
     domain: str
     rules: List[str]
     initial_event: str
+    history: List[ChatMessage] = []  # 👑 接收歷史對話，實現多輪深挖
 
 
 class SynthesizeRequest(BaseModel):
     domain: str
     initial_event: str
-    cso_questions: List[Dict]
-    vip_answers: str
+    history: List[ChatMessage]  # 👑 基於完整對話歷史進行重塑
 
 
 # ---------------------------------------------------------------------------
@@ -105,12 +110,16 @@ async def generate_roster_via_ai(
     timeline: List[str], pro_count: int, flash_count: int
 ) -> List[Dict]:
     formatted_timeline = "\n".join([f"- {event}" for event in timeline])
-    system_prompt = "你是一個專業的商業沙盤『選角導演』。請嚴格回傳 JSON 陣列，包含三個 key：'role_name', 'stance', 'tier'。"
-    user_prompt = f"事件時間軸：\n{formatted_timeline}\n\n生成 {pro_count} 個 pro 與 {flash_count} 個 flash 角色。"
+    # 👑 升級：強制要求 AI 解釋選角理由
+    system_prompt = """你是一個專業的商業沙盤『選角導演』。
+    請嚴格回傳 JSON 陣列，包含四個 key：'role_name', 'stance', 'tier', 'justification'。
+    'justification' 必須引用事件細節，解釋為何推薦此角色（約30字以內）。"""
+
+    user_prompt = f"事件時間/情報：\n{formatted_timeline}\n\n請生成 {pro_count} 個 pro 與 {flash_count} 個 flash 角色。"
 
     try:
         response = await gemini_client.aio.models.generate_content(
-            model="gemini-2.5-flash",  # 👑 已升級為最新 2.5 Flash
+            model="gemini-2.5-flash",
             contents=user_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt, response_mime_type="application/json"
@@ -125,9 +134,7 @@ async def generate_roster_via_ai(
 async def call_gemini_agent(
     agent: AgentRole, timeline: List[str], context: str
 ) -> dict:
-    # 👑 已升級為最新 2.5 Pro 與 Flash
     model_name = "gemini-2.5-pro" if agent.tier == "pro" else "gemini-2.5-flash"
-
     formatted_timeline = "\n".join([f"- {event}" for event in timeline])
     system_prompt = (
         f"你是【{agent.role_name}】。立場：【{agent.stance}】。法規：{context}。"
@@ -158,7 +165,7 @@ async def call_gemini_pro_summary(
     user_prompt = f"時間軸：\n{timeline}\n\n情報：\n{final_context}\n\n請輸出報表。"
     try:
         response = await gemini_client.aio.models.generate_content(
-            model="gemini-2.5-pro",  # 👑 已升級為最新 2.5 Pro
+            model="gemini-2.5-pro",
             contents=user_prompt,
             config=types.GenerateContentConfig(system_instruction=system_prompt),
         )
@@ -171,48 +178,63 @@ async def audit_decision_with_flash(decision: str, enterprise_context: str) -> s
     prompt = f"你是稽核員。企業限制：{enterprise_context}\n\n待審核：\n{decision}\n\n回覆：[合規/違規] + 理由。"
     try:
         response = await gemini_client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,  # 👑 已升級為最新 2.5 Flash
+            model="gemini-2.5-flash", contents=prompt
         )
         return response.text
     except:
         return "[稽核失敗]"
 
 
-# ================= 🚀 VIP 專屬 API 端點 (尊榮引導機制) =================
+# ================= 🚀 VIP 專屬 API 端點 (預知回推機制) =================
 
 
-@app.post("/vip/consult", summary="VIP 尊榮幕僚質詢")
+@app.post("/vip/consult", summary="VIP 預知回推與多輪質詢")
 async def vip_consult(req: ConsultRequest):
     """
-    CSO 首席幕僚引導：
-    針對 VIP 客戶的初步描述，利用 Gemini Pro 抓出 3 個關鍵戰略盲區進行尊榮提問。
+    先知協定 (The Oracle Protocol)：
+    基於起火點與對話歷史，先預測最壞終局，再逼問戰略底線。若情報飽和則結束對話。
     """
     try:
         system_instruction = """
-        你現在是 MiroFish 的「首席危機幕僚 (CSO)」。
-        服務對象是面臨千萬美元級別危機的 VIP 董事長。
+        你現在是 MiroFish 的「首席危機幕僚 (CSO)」。服務對象是面臨千萬美元危機的 VIP 董事長。
+        請閱讀客戶的初始情報與【歷史對話紀錄】。
 
-        【任務】
-        1. 先用一句話專業地總結危機的嚴重性。
-        2. 抓出該事件中缺失的 3 個「最致命戰略盲區」。
-        3. 語氣必須尊榮、精準、具備顧問壓迫感。尊稱對方為「董事長」。
+        【任務邏輯】
+        1. 預知回推：如果是第一次提問，請先給出一個令人背脊發涼的「最壞終局預測」(oracle_projection)，接著基於該終局，提出 2-3 個戰略盲區問題 (strategic_questions)。
+        2. 剝洋蔥深挖：如果已有歷史對話，請根據董事長上一輪的回覆，繼續向下追問更細節的授權或底線。
+        3. 情報收網：如果經過幾輪對話，你認為情報已經具備極高的「法務/財務/備援」戰略飽和度，請將 status 設為 "ready"。否則設為 "interrogating"。
+        4. 語氣：尊榮、客觀、具備麥肯錫頂級顧問的壓迫感與專業度。
 
-        【輸出格式 (JSON)】
+        【輸出格式 (嚴格 JSON)】
         {
-          "opening_statement": "董事長您好，針對...危機，目前正處於...",
-          "questions": [
-            {"category": "法務/財務/供應鏈", "question": "問題內容"}
+          "oracle_projection": "【最壞終局預測】...", // 若非首回合，可簡略或針對新回答做次要預測
+          "strategic_questions": [
+            {"category": "例如: 財務彈藥庫", "question": "問題內容"}
           ],
-          "closing_statement": "請您指示，我們將立即重塑戰略。"
+          "status": "interrogating" // 若情報已足夠推演，請填 "ready"
         }
         """
+
+        # 組裝歷史對話
+        history_text = "無（這是第一回合）"
+        if req.history:
+            history_text = "\n".join(
+                [
+                    f"[{'董事長' if msg.role == 'vip' else '首席幕僚'}]: {msg.content}"
+                    for msg in req.history
+                ]
+            )
+
         user_prompt = (
-            f"產業：{req.domain}\n法規：{req.rules}\n事件描述：{req.initial_event}"
+            f"產業：{req.domain}\n"
+            f"法規/合約重點：{req.rules}\n"
+            f"初始起火點：{req.initial_event}\n\n"
+            f"【歷史對話紀錄】\n{history_text}\n\n"
+            f"請給出您的下一步質詢或判斷。"
         )
 
         response = await gemini_client.aio.models.generate_content(
-            model="gemini-2.5-pro",  # 👑 已升級為最新 2.5 Pro
+            model="gemini-2.5-pro",
             contents=user_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
@@ -225,34 +247,41 @@ async def vip_consult(req: ConsultRequest):
         raise HTTPException(status_code=500, detail="幕僚交握失敗")
 
 
-@app.post("/vip/synthesize", summary="VIP 事件重塑引擎")
+@app.post("/vip/synthesize", summary="VIP 全盤戰報重塑")
 async def vip_synthesize(req: SynthesizeRequest):
     """
-    情報編譯官：
-    將董事長的簡短回覆，結合原始事件，重塑為軍事級的推演戰報。
+    情報編譯官：將多輪對話的精華，濃縮成無懈可擊的《高階危機戰報》。
     """
     try:
         system_instruction = """
         你現在是 MiroFish 的「頂級情報編譯官」。
-        任務是將 VIP 董事長的口語回覆與初步描述，編譯成一份邏輯嚴密的《高階危機戰報 (Executive Crisis Brief)》。
+        請將 VIP 董事長的「初始起火點」以及「與幕僚的多輪對話歷史」，編譯成一份邏輯嚴密的《高階危機戰報 (Executive Crisis Brief)》。
 
         【要求】
         1. 語氣冰冷、客觀、充滿數據感。
-        2. 明確標示時間壓迫性、財務底線與法規風險。
-        3. 這是後續所有 AI 角色推演的唯一依據。
-        4. 以 Markdown 格式輸出，約 400 字。
+        2. 必須在文本中明確標示出對話中確認的：財務授權底線、法務合約限制、備援與時間壓迫。
+        3. 這是後續所有 AI 角色推演的唯一依據，不可遺漏決策者的任何授權。
+        4. 以 Markdown 格式輸出，約 400-500 字。
         """
-        user_prompt = f"原始事件：{req.initial_event}\n幕僚提問：{req.cso_questions}\n董事長回覆：{req.vip_answers}"
+        history_text = "\n".join(
+            [
+                f"[{'董事長' if msg.role == 'vip' else '首席幕僚'}]: {msg.content}"
+                for msg in req.history
+            ]
+        )
+        user_prompt = (
+            f"原始事件：{req.initial_event}\n\n【完整諮詢對話】\n{history_text}"
+        )
 
         response = await gemini_client.aio.models.generate_content(
-            model="gemini-2.5-pro",  # 👑 已升級為最新 2.5 Pro
+            model="gemini-2.5-pro",
             contents=user_prompt,
             config=types.GenerateContentConfig(system_instruction=system_instruction),
         )
         return {"synthesized_event": response.text}
     except Exception as e:
         logger.error(f"VIP Synthesize 失敗: {str(e)}")
-        raise HTTPException(status_code=500, detail="事件重塑失敗")
+        raise HTTPException(status_code=500, detail="戰報重塑失敗")
 
 
 # ================= 🚀 原有推演工作流 (Background Task) =================
@@ -310,7 +339,7 @@ async def run_simulation_pipeline_bg(task_id: str, payload: SimulateAsyncRequest
 # ---------------------------------------------------------------------------
 @app.get("/")
 async def health_check():
-    return {"status": "online", "version": "4.4.0 (VIP Edition - Gemini 2.5)"}
+    return {"status": "online", "version": "5.0.0 (Oracle Protocol Edition)"}
 
 
 @app.post("/generate_cast", response_model=List[AgentRole])
